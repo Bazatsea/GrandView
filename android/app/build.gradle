@@ -7,8 +7,10 @@ android {
         applicationId "uk.grandview.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // each CI build gets a higher number so Android accepts it as an update
+        def run = (System.getenv("GITHUB_RUN_NUMBER") ?: "1") as int
+        versionCode run
+        versionName "1.0." + run
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,7 +18,21 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // One fixed signing key for every build, so a new APK installs over the old one.
+    // CI writes it from the repository secrets; without them the usual debug key is used.
+    def keystore = file(System.getenv("GV_KEYSTORE_FILE") ?: "grandview.keystore")
+    signingConfigs {
+        grandview {
+            storeFile keystore
+            storePassword System.getenv("GV_KEYSTORE_PASSWORD")
+            keyAlias "grandview"
+            keyPassword System.getenv("GV_KEYSTORE_PASSWORD")
+        }
+    }
     buildTypes {
+        debug {
+            if (keystore.exists() && System.getenv("GV_KEYSTORE_PASSWORD")) signingConfig signingConfigs.grandview
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

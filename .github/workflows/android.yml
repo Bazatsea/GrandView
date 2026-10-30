@@ -28,7 +28,17 @@ jobs:
       - run: npx cap sync android
       - name: Build APK
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+        env:
+          GV_KEYSTORE_B64: ${{ secrets.GV_KEYSTORE_B64 }}
+          GV_KEYSTORE_PASSWORD: ${{ secrets.GV_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$GV_KEYSTORE_B64" ]; then
+            echo "$GV_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/grandview.keystore"
+            export GV_KEYSTORE_FILE="$RUNNER_TEMP/grandview.keystore"
+          else
+            echo "::warning::No GV_KEYSTORE_B64 secret, so this APK won't install over an earlier one"
+          fi
+          chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: GrandView-apk
