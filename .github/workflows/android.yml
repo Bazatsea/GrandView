@@ -1,8 +1,12 @@
-# Builds an installable GrandView APK on every push. Download it from the run's "Artifacts".
+# Builds an installable GrandView APK on every push to main and publishes it as the
+# "latest" release, so a phone can download it from one fixed link:
+# https://github.com/Bazatsea/GrandView/releases/latest/download/GrandView.apk
 name: Android APK
 on:
   push:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,3 +30,12 @@ jobs:
         with:
           name: GrandView-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish as the latest release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk GrandView.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest GrandView.apk --title "GrandView (latest build)" \
+            --notes "Built from ${GITHUB_SHA::7}. On your Android phone, open this page, tap GrandView.apk and allow installing from your browser."
