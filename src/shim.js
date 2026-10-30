@@ -102,9 +102,10 @@ function localDb() {
   return { doc: docRef, collection: colRef };
 }
 
-// Phone-only data gets the usual starting list the first time the app opens.
-function seedLocal(db) {
-  try { if (localStorage.getItem("gv-seeded")) return; localStorage.setItem("gv-seeded", "1"); } catch (e) { return; }
+// A new family (or phone-only data) gets the usual starting list the first time it opens.
+async function seedOnce(db, local) {
+  if (local) { try { if (localStorage.getItem("gv-seeded")) return; localStorage.setItem("gv-seeded", "1"); } catch (e) { return; } }
+  else { const mark = db.doc("settings/seeded"); if ((await mark.get()).exists) return; await mark.set({ at: new Date().toISOString() }); }
   const start = [
     ["wake-up", "Wake up", "sun", "07:30", "Time to wake up, [name]"], ["morning-pills", "Morning pills", "pill", "08:00"],
     ["breakfast", "Breakfast", "meal", "08:30"], ["water", "Glass of water", "drink", "10:30"], ["lunch", "Lunch", "meal", "12:30"],
@@ -122,9 +123,9 @@ async function openDb() {
       const app = initializeApp(firebaseConfig);
       await signInAnonymously(getAuth(app));
       const fs = initializeFirestore(app, { localCache: persistentLocalCache() }); // keeps working offline
-      return firestoreDb(fs, "families/" + code);
+      const db = firestoreDb(fs, "families/" + code); await seedOnce(db, false); return db;
     } catch (e) { console.error("Family sharing unavailable", e); }
   }
-  const db = localDb(); seedLocal(db); return db;
+  const db = localDb(); await seedOnce(db, true); return db;
 }
 window.claude = { use: async name => name === "db" ? (dbPromise ||= openDb()) : null };

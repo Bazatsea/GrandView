@@ -60,7 +60,8 @@ button { cursor: pointer }
 .gear[aria-current="page"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
 .plain .ic { color: var(--accent) }
 .tabs { display: flex; gap: 8px; background: var(--surface); border: 2px solid var(--line); border-radius: 999px; padding: 6px; }
-.tabs a { flex: 1; text-align: center; padding: 12px 8px; border-radius: 999px; text-decoration: none; color: var(--muted); font-weight: 700; font-size: 1.05rem; }
+.tabs a { flex: 1; text-align: center; padding: 12px 6px; border-radius: 999px; text-decoration: none; color: var(--muted); font-weight: 700; font-size: 1.45rem; line-height: 1.2; min-width: 0 }
+@media (max-width: 400px) { .tabs a { font-size: 1.25rem } .tabs { gap: 4px; padding: 4px } }
 .tabs a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
 
 header.day { display: grid; gap: 2px; margin-block: 28px 20px; }
