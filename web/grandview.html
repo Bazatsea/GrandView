@@ -1,0 +1,857 @@
+<title>GrandView</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<!-- digits only, so numbers use a plain round 0 instead of Atkinson's slashed one -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&text=0123456789&display=swap">
+<style>
+/* Layout: one calm column. Today = huge tap tiles for the older person; Family = status + reminder editor. */
+:root {
+  --bg: #f4f1f8;
+  --surface: #ffffff;
+  --ink: #2a1f3d;
+  --muted: #5e5470;
+  --line: #d8d0e4;
+  --accent: #5b3a92;
+  --accent-ink: #ffffff;
+  --done: #2f7d3a;
+  --done-bg: #e3f2e3;
+  --due: #b3261e;
+  --due-bg: #fde7e6;
+  --warm: #9a5b00;
+  --warm-bg: #fff1d6;
+  --danger: #b3261e;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Lexend", "Atkinson Hyperlegible","Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #17121f; --surface: #221a2d; --ink: #efeaf6; --muted: #b7accb; --line: #3a2f4a;
+  --accent: #b89be8; --accent-ink: #1e1230; --done: #7fd18a; --done-bg: #183a20;
+  --due: #ff8a80; --due-bg: #3d1715; --warm: #ffc266; --warm-bg: #3d2c0d; --danger: #ff8a80; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #17121f; --surface: #221a2d; --ink: #efeaf6; --muted: #b7accb; --line: #3a2f4a;
+  --accent: #b89be8; --accent-ink: #1e1230; --done: #7fd18a; --done-bg: #183a20;
+  --due: #ff8a80; --due-bg: #3d1715; --warm: #ffc266; --warm-bg: #3d2c0d; --danger: #ff8a80; color-scheme: dark }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+.field input[type=radio], .field input[type=checkbox] { width: 24px; height: 24px; padding: 0; flex: none }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 20px; line-height: 1.45; }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 16px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button, input, select { font: inherit; color: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 4px solid var(--accent); outline-offset: 3px }
+
+.topbar { display: flex; gap: 10px; align-items: center }
+.topbar .tabs { flex: 1; min-width: 0 }
+.gear { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); border: 2px solid var(--line); background: var(--surface) }
+.gear svg { width: 24px; height: 24px }
+#voice-btn { cursor: pointer; padding: 0 }
+#voice-btn.on { background: var(--done); color: var(--done-bg); border-color: var(--done) }
+#voice-btn.waiting { color: var(--done); border-color: var(--done) }
+#voice-btn.off { background: var(--danger); color: var(--surface); border-color: var(--danger) }
+#tab-family { position: relative; overflow: hidden; cursor: pointer; padding: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation }
+#tab-family svg { position: relative; z-index: 1 }
+#tab-family::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--accent); transform: scale(0); }
+#tab-family.holding { color: var(--accent-ink) }
+#tab-family.holding::before { transform: scale(1); transition: transform 2s linear }
+.hint { margin: 10px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 2px solid var(--line); font-size: 1rem; color: var(--muted); text-align: right }
+.gear[aria-current="page"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.plain .ic { color: var(--accent) }
+.tabs { display: flex; gap: 8px; background: var(--surface); border: 2px solid var(--line); border-radius: 999px; padding: 6px; }
+.tabs a { flex: 1; text-align: center; padding: 12px 8px; border-radius: 999px; text-decoration: none; color: var(--muted); font-weight: 700; font-size: 1.05rem; }
+.tabs a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+
+header.day { display: grid; gap: 2px; margin-block: 28px 20px; }
+.day .date { font-family: var(--font-display); font-weight: 600; font-size: clamp(2.1rem, 8vw, 3.2rem); line-height: 1.05; text-wrap: balance; margin: 0 }
+.day .clock { font-size: 1.6rem; color: var(--muted); font-variant-numeric: tabular-nums }
+.progress { margin-top: 12px; font-size: 1.15rem; font-weight: 700 }
+.bar { height: 14px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 8px }
+.bar > i { display: block; height: 100%; background: var(--done); width: 0; transition: width .4s }
+
+.tiles { display: grid; gap: 14px; }
+.tile { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 16px; width: 100%; min-height: 112px;
+  text-align: left; padding: 16px 20px; background: var(--surface); border: 3px solid var(--line); border-radius: 22px; }
+.tile .acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end }
+.confirm { min-height: 64px; min-width: 150px; padding: 12px 22px; border-radius: 16px; border: 0; background: var(--accent); color: var(--accent-ink); font-size: 1.35rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px }
+.confirm svg { width: 28px; height: 28px }
+.speak { width: 64px; height: 64px; border-radius: 16px; border: 2px solid var(--line); background: var(--bg); color: var(--accent); display: grid; place-items: center }
+.speak svg { width: 32px; height: 32px }
+.linkish { background: none; border: 0; color: var(--muted); text-decoration: underline; font-size: 1rem; padding: 8px }
+.voicebar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 2px solid var(--line); font-size: 1.05rem }
+.voicebar .btn { font-size: 1.1rem; padding: 12px 18px }
+.greet { font-size: 1.4rem; font-weight: 700; margin: 0 0 4px }
+.tile .ic { width: 72px; height: 72px; border-radius: 18px; display: grid; place-items: center; background: var(--bg); color: var(--accent) }
+.tile .ic svg { width: 44px; height: 44px }
+.tile .name { font-size: 1.55rem; font-weight: 700; line-height: 1.2; min-width: 0 }
+.tile .sub { display: block; font-size: 1.05rem; font-weight: 400; color: var(--muted); margin-top: 2px }
+.tile .state { font-size: 1.05rem; font-weight: 700; padding: 8px 14px; border-radius: 99px; white-space: nowrap; background: var(--bg); color: var(--muted) }
+.tile.is-due { border-color: var(--due); background: var(--due-bg) }
+.tile.is-due .state { background: var(--due); color: var(--surface) }
+.tile.is-due .name .sub { color: var(--due); font-weight: 700 }
+.tile.is-done { background: var(--done-bg); border-color: var(--done) }
+.tile.is-done .ic { background: var(--done); color: var(--done-bg) }
+.tile.is-done .state { background: var(--done); color: var(--done-bg) }
+.tile.is-event .ic { color: var(--warm) }
+@media (max-width: 460px) {
+  .tile { grid-template-columns: 56px 1fr; }
+  .tile .ic { width: 56px; height: 56px } .tile .ic svg { width: 36px; height: 36px }
+  .tile .acts { grid-column: 1 / -1; justify-content: stretch; flex-wrap: nowrap }
+  .tile .confirm { flex: 1; min-width: 0 }
+  .tile .acts .state { padding-inline: 10px }
+}
+.undo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px 18px; border-radius: 18px; background: var(--surface); border: 2px dashed var(--line); font-size: 1.1rem }
+.undo button { padding: 10px 18px; border-radius: 12px; border: 2px solid var(--ink); background: transparent; font-weight: 700 }
+
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.6rem; margin: 36px 0 12px; text-wrap: balance }
+.empty { padding: 24px; border: 2px dashed var(--line); border-radius: 18px; color: var(--muted) }
+.banner { margin-top: 16px; padding: 12px 16px; border-radius: 14px; background: var(--warm-bg); color: var(--warm); font-size: 1rem }
+
+/* Family view */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 24px }
+.stat { background: var(--surface); border: 2px solid var(--line); border-radius: 16px; padding: 14px 16px }
+.stat b { display: block; font-size: 2rem; font-variant-numeric: tabular-nums; line-height: 1.1 }
+.stat span { color: var(--muted); font-size: .95rem }
+.list { display: grid; gap: 10px }
+.row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; background: var(--surface); border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; font-size: 1.05rem }
+.row .ic { color: var(--accent) } .row .ic svg { width: 32px; height: 32px }
+.row .meta { color: var(--muted); font-size: .92rem }
+.row .txt { min-width: 0 }
+.week { display: flex; gap: 4px; margin-top: 6px }
+.week i { width: 14px; height: 14px; border-radius: 4px; background: var(--line) }
+.week i.y { background: var(--done) }
+.week i.na { background: transparent; border: 2px solid var(--line) }
+.btn { padding: 10px 16px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); font-weight: 700; font-size: 1rem }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.btn.danger { color: var(--danger); border-color: var(--danger) }
+.chip-ok { color: var(--done); font-weight: 700 } .chip-due { color: var(--due); font-weight: 700 } .chip-wait { color: var(--muted) }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 99px; font-weight: 700; font-size: .95rem; white-space: nowrap }
+.pill svg { width: 18px; height: 18px }
+.pill.ok { background: var(--done); color: var(--done-bg) } .pill.due { background: var(--due-bg); color: var(--due); border: 2px solid var(--due) } .pill.wait { background: var(--bg); color: var(--muted) }
+.row.ok { background: var(--done-bg); border-color: var(--done) } .row.due { border-color: var(--due); background: var(--due-bg) }
+@media (max-width: 460px) { .row { grid-template-columns: 44px 1fr } .row > .pill, .row > .actions { grid-column: 2; justify-self: start } }
+
+form.editor { display: grid; gap: 16px; background: var(--surface); border: 2px solid var(--accent); border-radius: 18px; padding: 18px; margin-top: 12px }
+.field { display: grid; gap: 6px } .field > span { font-weight: 700; font-size: 1rem }
+.field input, .field select { padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); min-width: 0; width: 100% }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px } @media (max-width: 460px) { .two { grid-template-columns: 1fr } }
+.seg { display: flex; flex-wrap: wrap; gap: 8px }
+.seg label { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 2px solid var(--line); border-radius: 12px; font-size: 1rem }
+.seg input:checked + span { font-weight: 700 }
+.icons { display: flex; flex-wrap: wrap; gap: 8px }
+.icons label { display: grid; place-items: center; width: 56px; height: 56px; border: 2px solid var(--line); border-radius: 14px; color: var(--accent) }
+.icons input { position: absolute; opacity: 0; pointer-events: none }
+.icons label:has(input:checked) { border-color: var(--accent); background: var(--bg); outline: 2px solid var(--accent) }
+.icons label:has(input:focus-visible) { outline: 4px solid var(--accent) }
+.icons svg { width: 32px; height: 32px }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between }
+.actions div { display: flex; gap: 10px; flex-wrap: wrap }
+.note { color: var(--muted); font-size: .95rem; margin-top: 28px }
+.soon { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px }
+.cd { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; background: var(--surface); border: 2px solid var(--line); border-radius: 18px; padding: 14px 16px }
+.cd .n { grid-row: span 2; min-width: 84px; text-align: center; font-family: var(--font-display); font-weight: 600; font-size: 2.2rem; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums }
+.cd .n small { display: block; font-family: var(--font-body); font-size: .85rem; font-weight: 700; color: var(--muted); margin-top: 4px }
+.cd b { font-size: 1.2rem; line-height: 1.2; min-width: 0 } .cd span { color: var(--muted); font-size: .95rem }
+.cd.today { border-color: var(--warm); background: var(--warm-bg) } .cd.today .n { color: var(--warm) }
+.msgs { display: grid; gap: 12px; margin-bottom: 14px }
+.msg { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 16px 18px; border-radius: 22px; background: var(--surface); border: 3px solid var(--accent); font-size: 1.4rem; line-height: 1.3 }
+.msg .ic { color: var(--accent) } .msg .ic svg { width: 44px; height: 44px } .msg .txt { min-width: 0; overflow-wrap: anywhere }
+.msg .from { display: block; font-size: 1rem; color: var(--muted); font-weight: 700; margin-bottom: 2px }
+.check { display: flex; gap: 10px; align-items: center; font-size: 1rem } .check input { width: 24px; height: 24px }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<div class="wrap">
+  <div class="topbar">
+    <nav class="tabs" aria-label="View">
+      <a href="#today" id="tab-today">Today</a>
+      <a href="#tomorrow" id="tab-tomorrow">Tomorrow</a>
+    </nav>
+    <button id="voice-btn" class="gear" type="button" hidden></button>
+    <button type="button" id="tab-family" class="gear" aria-label="Family settings: press and hold for 2 seconds" title="Hold for 2 seconds"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
+  </div>
+  <p id="hold-hint" class="hint" hidden>Hold the settings button for 2 seconds to open it.</p>
+  <main id="app"></main>
+</div>
+
+<script>
+const ICONS = {
+  pill: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><rect x="6" y="17" width="36" height="14" rx="7" transform="rotate(-35 24 24)"/><path d="M19 14.5l10 19"/></svg>',
+  meal: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><circle cx="26" cy="24" r="12"/><path d="M8 8v12a3 3 0 006 0V8M11 23v17M42 8c-3 2-4 7-4 12h4v20"/></svg>',
+  drink: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"><path d="M12 8h24l-3 32H15z"/><path d="M13.5 20h21"/></svg>',
+  door: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="22" width="24" height="18" rx="3"/><path d="M17 22v-6a7 7 0 0114 0v6M24 29v4"/></svg>',
+  cooker: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5"><rect x="8" y="8" width="32" height="32" rx="4"/><circle cx="17" cy="17" r="4"/><circle cx="31" cy="17" r="4"/><circle cx="17" cy="31" r="4"/><circle cx="31" cy="31" r="4"/></svg>',
+  calendar: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><rect x="8" y="11" width="32" height="29" rx="4"/><path d="M8 20h32M16 6v9M32 6v9"/></svg>',
+  walk: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="26" cy="8" r="3.5"/><path d="M24 16l-5 10 7 4 2 12M24 16l6 7 6 1M19 26l-5 14"/></svg>',
+  phone: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"><path d="M14 6h8l3 9-5 3a24 24 0 0010 10l3-5 9 3v8a4 4 0 01-4 4C22 38 10 26 10 10a4 4 0 014-4z"/></svg>',
+  cake: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 40h32V26a4 4 0 00-4-4H12a4 4 0 00-4 4zM8 31c4 3 8 3 11 0 3 3 7 3 10 0 3 3 7 3 11 0M24 22v-8"/><path d="M24 6c2 2 2 4 0 5-2-1-2-3 0-5z"/></svg>',
+  bag: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16h28l-2 24H12z"/><path d="M18 20v-6a6 6 0 0112 0v6"/></svg>',
+  sun: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><circle cx="24" cy="24" r="8"/><path d="M24 6v5M24 37v5M6 24h5M37 24h5M11.3 11.3l3.5 3.5M33.2 33.2l3.5 3.5M11.3 36.7l3.5-3.5M33.2 14.8l3.5-3.5"/></svg>',
+  bell: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 34V22a12 12 0 0124 0v12l3 4H9z"/><path d="M20 42a4 4 0 008 0"/></svg>',
+  star: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"><path d="M24 6l5.5 11.5 12.5 1.5-9.2 8.6 2.4 12.4L24 34l-11.2 6 2.4-12.4L6 19l12.5-1.5z"/></svg>'
+};
+const SPEAKER = '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v10h8l10 8V11l-10 8z"/><path d="M33 17a10 10 0 010 14M38 12a17 17 0 010 24"/></svg>';
+const CHECK ='<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 25l9 9 19-20"/></svg>';
+
+// The starting reminders the family can edit. Used only when no shared store is reachable (demo mode).
+const DEMO_TASKS = [
+  { label: "Wake up", icon: "sun", kind: "daily", time: "07:30", order: 0, say: "Time to wake up, [name]" },
+  { label: "Morning pills", icon: "pill", kind: "daily", time: "08:00", order: 1 },
+  { label: "Breakfast", icon: "meal", kind: "daily", time: "08:30", order: 2 },
+  { label: "Glass of water", icon: "drink", kind: "daily", time: "10:30", order: 3 },
+  { label: "Lunch", icon: "meal", kind: "daily", time: "12:30", order: 4 },
+  { label: "Cup of tea", icon: "drink", kind: "daily", time: "15:00", order: 5 },
+  { label: "Evening meal", icon: "meal", kind: "daily", time: "18:00", order: 6 },
+  { label: "Evening pills", icon: "pill", kind: "daily", time: "18:30", order: 7 },
+  { label: "Cooker turned off", icon: "cooker", kind: "daily", time: "19:00", order: 8 },
+  { label: "Front door locked", icon: "door", kind: "daily", time: "21:00", order: 9 }
+];
+
+// One-tap starting points in the "add" form; everything stays editable before saving.
+const QUICK = {
+  daily: [
+    { label: "Afternoon pills", icon: "pill", time: "14:00" },
+    { label: "Bedtime pills", icon: "pill", time: "22:00" },
+    { label: "Eye drops", icon: "pill", time: "09:00" },
+    { label: "Glass of water", icon: "drink", time: "16:00" },
+    { label: "Short walk", icon: "walk", time: "11:00" },
+    { label: "Bedtime", icon: "bell", time: "22:30", say: "Time to get ready for bed, [name]" }
+  ],
+  once: [
+    { label: "Going shopping", icon: "bag" },
+    { label: "Doctor's appointment", icon: "calendar" },
+    { label: "Hairdresser", icon: "calendar" },
+    { label: "Visitor coming", icon: "phone" }
+  ]
+};
+const pad = n => String(n).padStart(2, "0");
+const keyOf = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const nowHM = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const fmtTime = hm => { if (!hm) return ""; const [h, m] = hm.split(":").map(Number); const ap = h < 12 ? "am" : "pm"; return ((h % 12) || 12) + (m ? ":" + pad(m) : "") + ap; };
+const fmtAt = iso => { const d = new Date(iso); return fmtTime(pad(d.getHours()) + ":" + pad(d.getMinutes())); };
+const fmtDate = k => new Date(k + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const tickId = (date, taskId) => date + "__" + taskId;
+
+const state = { tasks: [], ticks: {}, messages: [], person: "", mode: "loading", undo: null, editing: null, confirmDelete: null, today: keyOf(new Date()) };
+let db = null;
+
+// ---- voice: browser speech, switched on by a tap each time the page opens ----
+const voice = { on: false, spoken: {} }; // spoken[date__task] = {count, last}
+// In the Android app, speech and alarms go through the phone's own text-to-speech (window.GVNative).
+const NATIVE = window.GVNative || null;
+const canSpeak = !!NATIVE || "speechSynthesis" in window;
+// Browsers don't label a voice's gender, so prefer known female voices by name, British first.
+const FEMALE = /female|serena|kate|stephanie|martha|libby|sonia|hazel|susan|fiona|moira|tessa|karen|samantha|zira|aria|jenny|emma|amy|catherine|victoria|allison|ava|joanna/i;
+let chosenVoice = ""; try { chosenVoice = localStorage.getItem("gv-voice-name") || ""; } catch (e) {}
+// How the chosen voice delivers its words. Firmer styles are louder, a touch quicker and lower.
+const STYLES = {
+  soft: { label: "Soft and gentle", rate: 0.82, pitch: 1.08, volume: 0.85 },
+  clear: { label: "Clear and confident", rate: 0.92, pitch: 0.95, volume: 1 },
+  firm: { label: "Firm and authoritative", rate: 0.95, pitch: 0.8, volume: 1 },
+  steady: { label: "Calm and steady (deeper)", rate: 0.8, pitch: 0.7, volume: 1 }
+};
+let chosenStyle = "soft"; try { chosenStyle = localStorage.getItem("gv-voice-style") || "soft"; } catch (e) {}
+const englishVoices = () => NATIVE ? [] : speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
+function pickVoice() {
+  const vs = englishVoices();
+  return vs.find(v => v.name === chosenVoice)
+    || vs.find(v => /en-GB/i.test(v.lang) && FEMALE.test(v.name))
+    || vs.find(v => FEMALE.test(v.name))
+    || vs.find(v => /en-GB/i.test(v.lang)) || vs[0] || null;
+}
+function say(text) {
+  if (!canSpeak) return;
+  const st0 = STYLES[chosenStyle] || STYLES.soft;
+  if (NATIVE) { NATIVE.speak({ text, rate: st0.rate, pitch: st0.pitch, volume: st0.volume }).catch(() => {}); return; }
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickVoice(); if (v) u.voice = v;
+    const st = STYLES[chosenStyle] || STYLES.soft;
+    u.rate = st.rate; u.pitch = st.pitch; u.volume = st.volume;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+const callName = () => state.person ? state.person + ", " : "";
+// Family-written wording: "[name]" is replaced with the person's name; without it the name goes first.
+function personalise(text) {
+  const n = state.person;
+  if (/\[name\]/i.test(text)) return text.replace(/\s*,?\s*\[name\]/gi, m => n ? m.replace(/\[name\]/i, n) : "");
+  return n ? n + ", " + text.charAt(0).toLowerCase() + text.slice(1) : text;
+}
+const promptFor = t => {
+  if (t.say) return personalise(t.say);
+  const what = t.label.charAt(0).toLowerCase() + t.label.slice(1);
+  const lead = t.kind === "once" ? `${callName()}a reminder: ${what}` : `${callName()}it's time for ${what}`;
+  return `${lead}${t.time ? ", at " + fmtTime(t.time).replace("am", " a m").replace("pm", " p m") : ""}.${t.note ? " " + t.note + "." : ""}${t.noConfirm ? "" : " Press the green Confirm button when it's done."}`;
+};
+// Speak a due task once at its time, then again every 30 minutes, at most 3 times, until confirmed.
+function voiceCheck() {
+  if (NATIVE || !voice.on || !voice.started) return; // the app's phone alarms do this job
+  const now = Date.now();
+  // Message alerts: read out once when their time arrives (within the last 30 minutes).
+  for (const m of state.messages) {
+    const k = "msg__" + m.id;
+    if (!m.alertAt || voice.spoken[k] || !msgLive(m) || now - new Date(m.alertAt) > 30 * 60000) continue;
+    voice.spoken[k] = { count: 1, last: now };
+    return say(messageSpeech(m));
+  }
+  // One hour's warning for appointments and events that have a time.
+  const inHour = (() => { const d = new Date(now + 60 * 60000); return pad(d.getHours()) + ":" + pad(d.getMinutes()); })();
+  for (const t of todaysTasks()) {
+    const k = "pre__" + tickId(state.today, t.id);
+    if (t.kind !== "once" || !t.time || isDone(t) || voice.spoken[k] || t.time <= nowHM() || t.time > inHour) continue;
+    voice.spoken[k] = { count: 1, last: now };
+    const what = t.label.charAt(0).toLowerCase() + t.label.slice(1);
+    return say(`${callName()}a reminder: ${what} is at ${fmtTime(t.time).replace("am", " a m").replace("pm", " p m")}, in about ${Math.max(5, Math.round((new Date(state.today + "T" + t.time) - now) / 300000) * 5)} minutes.${t.note ? " " + t.note + "." : ""}`);
+  }
+  // Display-only items are read out once at their time.
+  for (const t of todaysTasks()) {
+    const k = "info__" + tickId(state.today, t.id);
+    if (!t.noConfirm || !t.time || voice.spoken[k] || t.time > nowHM()) continue;
+    voice.spoken[k] = { count: 1, last: now };
+    if (now - new Date(state.today + "T" + t.time) <= 30 * 60000) return say(promptFor(t));
+  }
+  const ready = todaysTasks().filter(t => {
+    if (!isDue(t)) return false;
+    const s = voice.spoken[tickId(state.today, t.id)] || { count: 0, last: 0 };
+    return s.count < 3 && now - s.last >= 30 * 60000;
+  });
+  if (!ready.length) return;
+  for (const t of ready) { const k = tickId(state.today, t.id), s = voice.spoken[k] || { count: 0 }; voice.spoken[k] = { count: s.count + 1, last: now }; }
+  if (ready.length === 1) return say(promptFor(ready[0]));
+  const names = ready.map(t => t.label.toLowerCase());
+  say(`${callName()}you still have ${ready.length} things to do: ${names.slice(0, -1).join(", ")} and ${names.at(-1)}. Press Confirm on each one when it's done.`);
+}
+const shownAt = m => m.alertAt || m.at;
+const msgLive = m => !m.alertAt || m.alertAt <= new Date().toISOString();
+const messageSpeech = m => `${callName()}${m.from ? "a message from " + m.from : "a new message"}. ${m.text}`;
+function voiceStart() {
+  voice.on = true; voice.started = true; voice.onAt = new Date().toISOString();
+  try { localStorage.setItem("gv-voice", "1"); } catch (e) {}
+  say(`Hello ${state.person || "there"}. I'll remind you when each task is due.`);
+  setTimeout(voiceCheck, 5000);
+}
+function voiceStop() { voice.on = false; voice.started = false; try { localStorage.setItem("gv-voice", "0"); speechSynthesis.cancel(); } catch (e) {} }
+// Spoken reminders are on unless someone turned them off on this device. Browsers only let a page
+// speak after a tap, so the first tap anywhere starts them.
+try { voice.on = localStorage.getItem("gv-voice") !== "0"; } catch (e) { voice.on = true; }
+if (!canSpeak) voice.on = false;
+if (NATIVE && voice.on) { voice.started = true; voice.onAt = new Date().toISOString(); } // no tap needed in the app
+function unlockVoice(e) {
+  if (!voice.on || voice.started || e.target.closest?.("#voice-btn")) return;
+  voiceStart();
+  // redraw after the tap has finished: changing the page mid-tap would swallow the tap
+  document.addEventListener("click", () => setTimeout(render, 300), { once: true });
+}
+document.addEventListener("pointerdown", unlockVoice);
+document.addEventListener("keydown", unlockVoice);
+
+// ---- storage: shared db when available, otherwise an in-page demo ----
+const store = {
+  async saveTask(id, data) {
+    if (db) return id ? db.collection("tasks").doc(id).set(data) : db.collection("tasks").add(data);
+    if (id) Object.assign(state.tasks.find(t => t.id === id), data);
+    else state.tasks.push({ id: "local" + Date.now(), ...data });
+    render();
+  },
+  async deleteTask(id) {
+    if (db) return db.collection("tasks").doc(id).delete();
+    state.tasks = state.tasks.filter(t => t.id !== id); render();
+  },
+  async tick(taskId) {
+    const rec = { date: state.today, taskId, at: new Date().toISOString() };
+    if (db) return db.collection("ticks").doc(tickId(state.today, taskId)).set(rec);
+    state.ticks[tickId(state.today, taskId)] = rec; render();
+  },
+  async sendMessage(data) {
+    if (db) return db.collection("messages").add(data);
+    state.messages.unshift({ id: "local" + Date.now(), ...data }); if (voice.started && !data.alertAt) say(messageSpeech(data)); render();
+  },
+  async deleteMessage(id) {
+    if (db) return db.collection("messages").doc(id).delete();
+    state.messages = state.messages.filter(m => m.id !== id); render();
+  },
+  async saveName(name) {
+    if (db) return db.collection("settings").doc("person").set({ name });
+    state.person = name; render();
+  },
+  async untick(taskId) {
+    if (db) return db.collection("ticks").doc(tickId(state.today, taskId)).delete();
+    delete state.ticks[tickId(state.today, taskId)]; render();
+  }
+};
+
+// Every-day tasks follow the order the family set (Move up / Move down), times or not.
+// Regular tasks: every day, or weekly on chosen days (days: 0 = Sunday … 6 = Saturday).
+const isRegular = t => t.kind === "daily" || t.kind === "weekly";
+const dailyInOrder = () => state.tasks.filter(isRegular).sort((a, b) => (a.order || 0) - (b.order || 0) || a.id.localeCompare(b.id));
+const dow = k => new Date(k + "T12:00:00").getDay();
+const onDay = (t, k) => t.kind === "daily" || (t.kind === "weekly" && (t.days || []).includes(dow(k)));
+const regularFor = k => dailyInOrder().filter(t => onDay(t, k));
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+function daysText(t) {
+  const ds = WEEK_ORDER.filter(d => (t.days || []).includes(d)).map(d => DAY_NAMES[d] + "s");
+  return ds.length > 1 ? ds.slice(0, -1).join(", ") + " and " + ds.at(-1) : ds[0] || "No days chosen";
+}
+function todaysTasks() {
+  const events = state.tasks.filter(t => t.kind === "once" && t.date === state.today)
+    .sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
+  return [...events, ...regularFor(state.today)]; // today's one-off events first, they're the day's special items
+}
+async function moveTask(id, dir) {
+  const list = dailyInOrder(), i = list.findIndex(t => t.id === id), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const a = list[i], b = list[j];
+  let oa = a.order || 0, ob = b.order || 0;
+  if (oa === ob) { oa = i; ob = j; } // break ties so the swap takes effect
+  await store.saveTask(a.id, { ...strip(a), order: ob });
+  await store.saveTask(b.id, { ...strip(b), order: oa });
+}
+const strip = t => { const { id, ...rest } = t; return rest; };
+// Days from today to an item's next date; yearly items (birthdays) roll over to next year.
+function nextDate(t) {
+  if (t.kind !== "yearly") return t.date;
+  const y = Number(state.today.slice(0, 4)), md = t.date.slice(5);
+  let k = y + "-" + md; if (k < state.today) k = (y + 1) + "-" + md;
+  return k;
+}
+const daysUntil = k => Math.round((new Date(k + "T12:00:00") - new Date(state.today + "T12:00:00")) / 86400000);
+function comingUp() {
+  return state.tasks
+    .filter(t => t.date && ((t.kind === "yearly" && daysUntil(nextDate(t)) <= 5) || (t.kind === "once" && t.date > state.today && (t.countdown || daysUntil(t.date) <= 7))))
+    .map(t => ({ t, k: nextDate(t), d: daysUntil(nextDate(t)) }))
+    .sort((a, b) => a.d - b.d).slice(0, 6);
+}
+function countdownCard({ t, k, d }) {
+  const n = d === 0 ? `Today` : d === 1 ? `1<small>day</small>` : `${d}<small>days</small>`;
+  const when = d === 0 ? "Today" : d === 1 ? "Tomorrow" : fmtDate(k);
+  return `<div class="cd ${d === 0 ? "today" : ""}"><span class="n">${n}</span><b>${esc(t.label)}</b><span>${esc(when)}${t.time ? " at " + esc(fmtTime(t.time)) : ""}</span></div>`;
+}
+const isDone = t =>!!state.ticks[tickId(state.today, t.id)];
+// Overdue: its time has passed, or it was skipped (a task further down the list is already confirmed).
+function skippedIds() {
+  const list = todaysTasks().filter(t => !t.noConfirm), out = new Set();
+  let laterDone = false;
+  for (let i = list.length - 1; i >= 0; i--) { if (isDone(list[i])) laterDone = true; else if (laterDone) out.add(list[i].id); }
+  return out;
+}
+const isDue = t => !t.noConfirm && !isDone(t) && ((t.time && t.time <= nowHM()) || skippedIds().has(t.id));
+
+// ---- Today view ----
+function renderToday() {
+  const list = todaysTasks(), needs = list.filter(t => !t.noConfirm);
+  const done = needs.filter(isDone).length;
+  const pct = needs.length ? Math.round(done / needs.length * 100) : 0;
+  const hr = new Date().getHours();
+  const part = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  let html = `<header class="day">
+    <p class="greet">${esc(part)}${state.person ? ", " + esc(state.person) : ""}</p>
+    <p class="date">${esc(fmtDate(state.today))}</p>
+    <div class="clock">${esc(fmtTime(nowHM()))}</div>
+    ${needs.length ? `<div class="progress">${done} of ${needs.length} confirmed today</div><div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>` : ""}
+    ${state.mode === "demo" ? `<div class="banner">Demo mode: ticks are not shared or saved in this view.</div>` : ""}
+  </header>`;
+  const msgs = state.messages.filter(msgLive).sort((a, b) => shownAt(b).localeCompare(shownAt(a))).slice(0, 3);
+  if (msgs.length) html += `<div class="msgs">${msgs.map(m => `<div class="msg">
+      <span class="ic">${m.alertAt ? ICONS.bell : ICONS.phone}</span>
+      <span class="txt"><span class="from">${esc(m.from ? "From " + m.from : "Message")} · ${esc(fmtAt(shownAt(m)))}${keyOf(new Date(shownAt(m))) !== state.today ? " yesterday" : ""}</span>${esc(m.text)}</span>
+      ${canSpeak ? `<button class="speak" data-act="saymsg" data-id="${m.id}" aria-label="Read this message out loud">${SPEAKER}</button>` : ""}</div>`).join("")}</div>`;
+  const soon = comingUp();
+  if (soon.length) html += `<h2 style="margin-top:8px">Coming up</h2><div class="soon" style="margin-bottom:20px">${soon.map(countdownCard).join("")}</div>`;
+  if (state.mode === "loading") html += `<div class="empty">Loading today's list…</div>`;
+  else if (!list.length) html += `<div class="empty">Nothing on the list for today. A family member can add reminders from the Family tab.</div>`;
+  html += `<div class="tiles">`;
+  for (const t of list) {
+    const d = isDone(t), due = isDue(t), ev = t.kind === "once";
+    const tick = state.ticks[tickId(state.today, t.id)];
+    const label = d ? "Confirmed " + fmtAt(tick.at) : due ? "Tap when done" : (t.time ? fmtTime(t.time) : "Tap when done");
+    const sub = [ev ? "Today only" : "", t.time && (d || due) ? "Due " + fmtTime(t.time) : due ? "Not done yet" : "", t.note || ""].filter(Boolean).join(" · ");
+    if (state.undo === t.id) {
+      html += `<div class="undo" role="group" aria-label="Undo ${esc(t.label)}"><span>Mark <b>${esc(t.label)}</b> as not done?</span>
+        <button data-act="untick" data-id="${t.id}">Yes, not done</button><button data-act="keep">No, keep it</button></div>`;
+      continue;
+    }
+    if (t.noConfirm) {
+      html += `<div class="tile plain ${ev ? "is-event" : ""}"><span class="ic">${ICONS[t.icon] || ICONS.star}</span>
+        <span class="name">${esc(t.label)}${[ev ? "Today only" : "", t.note || ""].filter(Boolean).length ? `<span class="sub">${esc([ev ? "Today only" : "", t.note || ""].filter(Boolean).join(" · "))}</span>` : ""}</span>
+        <span class="acts">${t.time ? `<span class="state">${esc(fmtTime(t.time))}</span>` : ""}${canSpeak ? `<button class="speak" data-act="say" data-id="${t.id}" aria-label="Read ${esc(t.label)} out loud">${SPEAKER}</button>` : ""}</span></div>`;
+      continue;
+    }
+    html += `<div class="tile ${d ? "is-done" : due ? "is-due" : ""} ${ev ? "is-event" : ""}">
+      <span class="ic">${d ? CHECK : (ICONS[t.icon] || ICONS.star)}</span>
+      <span class="name">${esc(t.label)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
+      <span class="acts">${d
+        ? `<span class="state">${esc(label)}</span><button class="linkish" data-act="askundo" data-id="${t.id}">Undo</button>`
+        : `${!due && t.time ? `<span class="state">${esc(label)}</span>` : ""}
+           ${canSpeak ? `<button class="speak" data-act="say" data-id="${t.id}" aria-label="Read ${esc(t.label)} out loud">${SPEAKER}</button>` : ""}
+           <button class="confirm" data-act="tick" data-id="${t.id}" aria-label="Confirm ${esc(t.label)} is done">${CHECK}Confirm</button>`}</span></div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+// ---- Family view ----
+function weekKeys() {
+  const out = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); out.push(keyOf(d)); }
+  return out;
+}
+function renderFamily() {
+  const list = todaysTasks(), needs = list.filter(t => !t.noConfirm);
+  const done = needs.filter(isDone).length;
+  const due = needs.filter(isDue);
+  const lastTick = Object.values(state.ticks).sort((a, b) => b.at.localeCompare(a.at))[0];
+  const upcoming = state.tasks.filter(t => t.kind === "once" && t.date > state.today).sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")));
+  const daily = dailyInOrder();
+  const week = weekKeys();
+
+  let html = `<div class="summary">
+    <div class="stat"><b class="${done === needs.length && needs.length ? "chip-ok" : ""}">${done}/${needs.length}</b><span>confirmed today</span></div>
+    <div class="stat"><b class="${due.length ? "chip-due" : ""}">${due.length}</b><span>due but not confirmed</span></div>
+    <div class="stat"><b>${lastTick ? esc(fmtAt(lastTick.at)) : "–"}</b><span>${lastTick ? (lastTick.date === state.today ? "last confirmed today" : "last confirmed " + esc(fmtDate(lastTick.date))) : "nothing confirmed yet"}</span></div>
+  </div>
+  ${state.mode === "demo" ? `<div class="banner">Demo mode: changes here stay on this screen only.</div>` : ""}
+  ${NATIVE ? familySharingHtml() : ""}
+  <h2>Who is this for?</h2>
+  <form class="editor" id="nameform" style="border-color: var(--line)">
+    <label class="field"><span>Their name, as the voice should say it</span><input id="f-person" name="person" maxlength="40" value="${esc(state.person)}" placeholder="e.g. Mum, Grandad, Margaret"></label>
+    ${canSpeak && englishVoices().length > 1 ? `<label class="field"><span>Voice on this device</span><select id="f-voice">${englishVoices().map(v => `<option value="${esc(v.name)}" ${pickVoice() === v ? "selected" : ""}>${esc(v.name.replace(/^(Microsoft|Google)\s+/, ""))}${FEMALE.test(v.name) ? " (female)" : ""}</option>`).join("")}</select></label>` : ""}
+    ${canSpeak ? `<label class="field"><span>Speaking style</span><select id="f-style">${Object.entries(STYLES).map(([k, s]) => `<option value="${k}" ${chosenStyle === k ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>` : ""}
+    <div class="actions"><div><button class="btn primary" type="submit">Save name</button>${canSpeak ? `<button class="btn" type="button" data-act="preview">Hear a sample</button>` : ""}</div></div>
+  </form>`;
+
+  html += `<h2>Send a message</h2>
+  <form class="editor" id="msgform" style="border-color: var(--line)">
+    <label class="field"><span>Message</span><input id="m-text" name="text" required maxlength="140" placeholder="e.g. Sarah is coming for lunch at 1pm"></label>
+    <label class="field"><span>From</span><input id="m-from" name="from" maxlength="30" placeholder="Your name"></label>
+    <div class="field"><span>When</span>
+      <label class="check"><input id="m-hastime" type="checkbox" name="hastime"><span>Save it as an alert at a set time</span></label>
+      <input id="m-time" type="time" name="time" value="09:00" aria-label="Alert time" hidden>
+    </div>
+    <div class="actions"><div><button class="btn primary" type="submit">Send</button></div></div>
+  </form>
+  <p class="note" style="margin-top:8px">Messages appear at the top of the Today screen and are read out loud when spoken reminders are on. An alert stays hidden until its time (today, or tomorrow if that time has passed), then appears and is read out. Messages clear after two days.</p>
+  ${state.messages.length ? `<div class="list">${state.messages.map(m => `<div class="row"><span class="ic">${m.alertAt ? ICONS.bell : ICONS.phone}</span><span class="txt">${esc(m.text)}<div class="meta">${esc(m.from || "Family")} · ${m.alertAt
+      ? (msgLive(m) ? "Alert went off " : "Alert set for ") + esc(fmtAt(m.alertAt)) + (keyOf(new Date(m.alertAt)) === state.today ? " today" : keyOf(new Date(m.alertAt)) > state.today ? " tomorrow" : " yesterday")
+      : "Sent " + esc(fmtAt(m.at))}</div></span><span class="actions"><div><button class="btn danger" data-act="delmsg" data-id="${m.id}">Remove</button></div></span></div>`).join("")}</div>` : ""}`;
+  html += `<h2>Today's status</h2>`;
+  html += list.length ? `<div class="list">${list.map(t => {
+    const tk = state.ticks[tickId(state.today, t.id)];
+    const cls = tk ? "ok" : isDue(t) ? "due" : "";
+    const st = t.noConfirm ? `<span class="pill wait">Display only</span>` : tk ? `<span class="pill ok">${CHECK}Confirmed ${esc(fmtAt(tk.at))}</span>` : isDue(t) ? `<span class="pill due">Not confirmed yet</span>` : `<span class="pill wait">Not due yet</span>`;
+    return `<div class="row ${cls}"><span class="ic">${ICONS[t.icon] || ICONS.star}</span><span class="txt">${esc(t.label)}<div class="meta">${t.time ? "Due " + esc(fmtTime(t.time)) : "Any time"}</div></span>${st}</div>`;
+  }).join("")}</div>` : `<div class="empty">No reminders for today yet.</div>`;
+
+  html += `<h2>Daily and weekly reminders</h2><p class="note" style="margin-top:0">Use ▲ and ▼ to set the order they appear on the Today screen. Times are optional.</p>${editorSlot("new-daily")}<div class="list">`;
+  html += daily.map(t => rowEditable(t, `<div class="week" aria-label="Last 7 days">${week.map(k => `<i class="${state.ticks[tickId(k, t.id)] ? "y" : onDay(t, k) ? "" : "na"}" title="${esc(fmtDate(k))}"></i>`).join("")}</div>`)).join("") || `<div class="empty">No daily or weekly reminders yet.</div>`;
+  html += `</div>`;
+
+  html += `<h2>Appointments and one-off events</h2>${editorSlot("new-once")}<div class="list">`;
+  html += upcoming.map(t => rowEditable(t, `<div class="meta">${esc(fmtDate(t.date))}${t.time ? " at " + esc(fmtTime(t.time)) : ""}${t.countdown ? " · countdown on" : ""}</div>`)).join("") || `<div class="empty">Nothing booked. Add a doctor's visit, a shopping trip or a family call.</div>`;
+  html += `</div>`;
+
+  const yearly = state.tasks.filter(t => t.kind === "yearly" && t.date).sort((a, b) => daysUntil(nextDate(a)) - daysUntil(nextDate(b)));
+  html += `<h2>Birthdays and anniversaries</h2>${editorSlot("new-yearly")}<div class="list">`;
+  html += yearly.map(t => { const d = daysUntil(nextDate(t)); return rowEditable(t, `<div class="meta">${esc(fmtDate(nextDate(t)))} · ${d === 0 ? "today" : d === 1 ? "tomorrow" : "in " + d + " days"}</div>`); }).join("") || `<div class="empty">No birthdays yet. Each one shows a countdown on the Today screen from 5 days before.</div>`;
+  html += `</div>`;
+  html += `<p class="note">One-off items appear on the Today screen on their day. The coloured squares show the last 7 days for each every-day reminder.</p>`;
+  return html;
+}
+function familySharingHtml() {
+  let code = ""; try { code = localStorage.getItem("gv-family") || ""; } catch (e) {}
+  return `<h2>Family sharing</h2>
+  <form class="editor" id="familyform" style="border-color: var(--line)">
+    <p style="margin:0">${code ? `Phones using family code <b>${esc(code)}</b> share the same list.` : "This phone isn't sharing yet. Create a family code here, then type the same code on each family member's phone."}</p>
+    <label class="field"><span>Family code</span><input id="f-family" name="family" maxlength="20" value="${esc(code)}" autocapitalize="characters" placeholder="e.g. MADGE-7K2Q"></label>
+    <div class="actions"><div><button class="btn primary" type="submit">Use this code</button><button class="btn" type="button" data-act="newcode">Create a new code</button></div></div>
+  </form>`;
+}
+function rowEditable(t, extra) {
+  if (state.editing === t.id) return editorForm(t);
+  const confirm = state.confirmDelete === t.id;
+  return `<div class="row"><span class="ic">${ICONS[t.icon] || ICONS.star}</span>
+    <span class="txt">${esc(t.label)}${!isRegular(t) ? "" : `<div class="meta">${esc(t.kind === "weekly" ? daysText(t) : "Every day")}${t.time ? " at " + esc(fmtTime(t.time)) : ", any time"}</div>`}${extra}</span>
+    <span class="actions"><div>${confirm
+      ? `<button class="btn danger" data-act="delete" data-id="${t.id}">Delete</button><button class="btn" data-act="canceldel">Keep</button>`
+      : `${isRegular(t) ? `<button class="btn" data-act="up" data-id="${t.id}" aria-label="Move ${esc(t.label)} up">▲</button><button class="btn" data-act="down" data-id="${t.id}" aria-label="Move ${esc(t.label)} down">▼</button>` : ""}<button class="btn" data-act="edit" data-id="${t.id}">Edit</button>`}</div></span></div>`;
+}
+function editorSlot(slot) {
+  const kind = { "new-once": "once", "new-yearly": "yearly" }[slot] || "daily";
+  if (state.editing === slot) return editorForm({ kind, icon: { once: "calendar", yearly: "cake" }[kind] || "pill", date: state.today });
+  const label = { once: "Add appointment or event", yearly: "Add birthday", daily: "Add daily or weekly reminder" }[kind];
+  return `<p><button class="btn primary" data-act="edit" data-id="${slot}">${label}</button></p>`;
+}
+function editorForm(t) {
+  const isNew = !t.id;
+  return `<form class="editor" id="editor" data-id="${t.id || ""}">
+    ${isNew && QUICK[t.kind] ? `<div class="field"><span>Quick picks</span><div class="seg">${QUICK[t.kind].map((q, i) => `<button type="button" class="btn" data-act="quick" data-id="${t.kind}:${i}">${esc(q.label)}</button>`).join("")}</div></div>` : ""}
+    <label class="field"><span>What is it?</span><input id="f-label" name="label" required maxlength="60" value="${esc(t.label || "")}" placeholder="e.g. Morning pills, Dentist"></label>
+    <div class="field"><span>How often</span><div class="seg">
+      <label><input type="radio" name="kind" value="daily" ${t.kind === "daily" ? "checked" : ""}><span>Every day</span></label>
+      <label><input type="radio" name="kind" value="weekly" ${t.kind === "weekly" ? "checked" : ""}><span>Certain days each week</span></label>
+      <label><input type="radio" name="kind" value="once" ${t.kind === "once" ? "checked" : ""}><span>One day only</span></label>
+      <label><input type="radio" name="kind" value="yearly" ${t.kind === "yearly" ? "checked" : ""}><span>Every year (birthday)</span></label></div></div>
+    <div class="field" id="f-days-wrap" ${t.kind === "weekly" ? "" : "hidden"}><span>Which days</span><div class="seg">${WEEK_ORDER.map(d => `<label><input type="checkbox" name="days" value="${d}" ${(t.days || []).includes(d) ? "checked" : ""}><span>${DAY_NAMES[d].slice(0, 3)}</span></label>`).join("")}</div></div>
+    <div class="two">
+      <label class="field" id="f-date-wrap" ${isRegular(t) ? "hidden" : ""}><span>Date</span><input id="f-date" type="date" name="date" value="${esc(t.date || state.today)}"></label>
+      <div class="field"><span>Time</span>
+        <label class="check"><input id="f-hastime" type="checkbox" name="hastime" ${t.time ? "checked" : ""}><span>Set a time</span></label>
+        <input id="f-time" type="time" name="time" value="${esc(t.time || "09:00")}" aria-label="Time" ${t.time ? "" : "hidden"}>
+      </div>
+    </div>
+    <label class="check" id="f-cd-wrap" ${t.kind === "once" ? "" : "hidden"}><input id="f-countdown" type="checkbox" name="countdown" ${t.countdown ? "checked" : ""}><span>Show a countdown on the Today screen</span></label>
+    <label class="check"><input id="f-noconfirm" type="checkbox" name="noconfirm" ${t.noConfirm ? "checked" : ""}><span>Just show it, no Confirm button</span></label>
+    <label class="field"><span>What the voice says (optional)</span><input id="f-say" name="say" maxlength="120" value="${esc(t.say || "")}" placeholder="e.g. Time to wake up, [name]"></label>
+    <label class="field"><span>Extra note (optional)</span><input id="f-note" name="note" maxlength="80" value="${esc(t.note || "")}" placeholder="e.g. Two tablets with water"></label>
+    <div class="field"><span>Picture</span><div class="icons">${Object.keys(ICONS).map(k => `<label title="${k}"><input type="radio" name="icon" value="${k}" ${t.icon === k ? "checked" : ""} aria-label="${k}">${ICONS[k]}</label>`).join("")}</div></div>
+    <div class="actions"><div><button class="btn primary" type="submit">${isNew ? "Add" : "Save"}</button><button class="btn" type="button" data-act="cancel">Cancel</button></div>
+      ${isNew ? "" : `<div><button class="btn danger" type="button" data-act="askdel" data-id="${t.id}">Delete…</button></div>`}</div>
+  </form>`;
+}
+
+// ---- render + events ----
+const app = document.getElementById("app");
+function view() { return { "#family": "family", "#tomorrow": "tomorrow" }[location.hash] || "today"; }
+const SPEAKER_OFF = '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v10h8l10 8V11l-10 8z"/><path d="M33 19l10 10M43 19L33 29"/></svg>';
+function renderVoiceBtn() {
+  const b = document.getElementById("voice-btn");
+  b.hidden = !canSpeak; if (!canSpeak) return;
+  const st = !voice.on ? "off" : voice.started ? "on" : "waiting";
+  b.className = "gear " + st;
+  b.innerHTML = st === "off" ? SPEAKER_OFF : SPEAKER;
+  b.setAttribute("aria-pressed", String(st !== "off"));
+  const label = { on: "Spoken reminders on. Tap to turn off", waiting: "Spoken reminders on. Tap to start them", off: "Spoken reminders off. Tap to turn on" }[st];
+  b.setAttribute("aria-label", label); b.title = label;
+}
+document.getElementById("voice-btn").addEventListener("click", () => {
+  if (voice.on && voice.started) voiceStop(); else voiceStart();
+  renderVoiceBtn();
+});
+// Settings open only after a 2-second hold, so a stray tap can't change anything.
+(() => {
+  const g = document.getElementById("tab-family"), hint = document.getElementById("hold-hint");
+  let timer = null, hintTimer = null;
+  const start = e => {
+    if (timer) return;
+    if (view() === "family") { location.hash = "#today"; return; } // a tap leaves settings
+    g.classList.add("holding");
+    timer = setTimeout(() => { timer = null; g.classList.remove("holding"); hint.hidden = true; location.hash = "#family"; }, 2000);
+  };
+  const stop = () => {
+    if (!timer) return;
+    clearTimeout(timer); timer = null; g.classList.remove("holding");
+    hint.hidden = false; clearTimeout(hintTimer); hintTimer = setTimeout(() => hint.hidden = true, 3000);
+  };
+  g.addEventListener("pointerdown", e => { e.preventDefault(); start(e); });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => g.addEventListener(ev, stop));
+  g.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && !e.repeat) { e.preventDefault(); start(e); } });
+  g.addEventListener("keyup", e => { if (e.key === "Enter" || e.key === " ") stop(); });
+  g.addEventListener("contextmenu", e => e.preventDefault());
+})();
+function render() {
+  state.today = keyOf(new Date());
+  renderVoiceBtn();
+  const v = view();
+  for (const k of ["today", "tomorrow", "family"]) {
+    const el = document.getElementById("tab-" + k);
+    if (k === v) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
+  }
+  const f = document.activeElement;
+  if (f && app.contains(f) && f.closest("form")) return; // don't wipe a form mid-typing
+  app.innerHTML = v === "family" ? renderFamily() : v === "tomorrow" ? renderTomorrow() : renderToday();
+  if (NATIVE) scheduleNativeSoon();
+}
+
+// ---- Android app: hand the next week's reminders to the phone's alarm clock ----
+// The phone speaks each one at its time, even when locked or the app is closed.
+const sayTime = hm => fmtTime(hm).replace("am", " a m").replace("pm", " p m");
+function nativeAlarms() {
+  const out = [], now = Date.now(), at = (k, hm, plusMin = 0) => new Date(k + "T" + hm + ":00").getTime() + plusMin * 60000;
+  const add = (time, title, text) => { if (time > now) out.push({ at: time, title, text }); };
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() + i); const k = keyOf(d), isToday = k === state.today;
+    const events = state.tasks.filter(t => t.kind === "once" && t.date === k);
+    for (const t of [...events, ...regularFor(k)]) {
+      if (!t.time || (isToday && isDone(t))) continue;
+      add(at(k, t.time), t.label, promptFor(t));
+      if (t.kind === "once") add(at(k, t.time, -60), t.label, `${callName()}a reminder: ${t.label.charAt(0).toLowerCase() + t.label.slice(1)} is at ${sayTime(t.time)}, in about an hour.`);
+      if (!t.noConfirm && isToday) for (const m of [30, 60]) add(at(k, t.time, m), t.label + " (not confirmed yet)", promptFor(t));
+    }
+  }
+  for (const m of state.messages) if (m.alertAt) add(new Date(m.alertAt).getTime(), m.from ? "Message from " + m.from : "Message", messageSpeech(m));
+  return out.sort((a, b) => a.at - b.at).slice(0, 300);
+}
+let nativeTimer = null, lastAlarms = "";
+function scheduleNativeSoon() {
+  clearTimeout(nativeTimer);
+  nativeTimer = setTimeout(() => {
+    const st = STYLES[chosenStyle] || STYLES.soft;
+    const payload = { alarms: nativeAlarms(), speak: voice.on, rate: st.rate, pitch: st.pitch, volume: st.volume };
+    const json = JSON.stringify(payload);
+    if (json === lastAlarms || state.mode === "loading") return;
+    lastAlarms = json;
+    NATIVE.setAlarms(payload).catch(() => {});
+  }, 1500);
+}
+
+// ---- Tomorrow view: a calm look ahead, nothing to confirm yet ----
+const tomorrowKey = () => { const d = new Date(); d.setDate(d.getDate() + 1); return keyOf(d); };
+function tomorrowItems() {
+  const k = tomorrowKey();
+  const events = state.tasks.filter(t => (t.kind === "once" && t.date === k) || (t.kind === "yearly" && t.date && t.date.slice(5) === k.slice(5)))
+    .sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
+  return { k, events, daily: regularFor(k) };
+}
+function tomorrowSpeech() {
+  const { k, events } = tomorrowItems();
+  const sayTime = t => t.time ? " at " + fmtTime(t.time).replace("am", " a m").replace("pm", " p m") : "";
+  const lower = t => t.label.charAt(0).toLowerCase() + t.label.slice(1);
+  const join = xs => xs.length > 1 ? xs.slice(0, -1).join(", ") + ", and " + xs.at(-1) : xs[0] || "";
+  let text = `${callName()}tomorrow is ${DAY_NAMES[dow(k)]}.`;
+  if (events.length) text += ` You have ${join(events.map(t => lower(t) + sayTime(t)))}.`;
+  else text += " Nothing special is planned, just your usual tasks.";
+  return text;
+}
+function renderTomorrow() {
+  const { k, events, daily } = tomorrowItems();
+  const row = (t, sub) => `<div class="tile plain"><span class="ic">${ICONS[t.icon] || ICONS.star}</span>
+    <span class="name">${esc(t.label)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span><span class="acts">${t.time ? `<span class="state">${esc(fmtTime(t.time))}</span>` : ""}</span></div>`;
+  let html = `<header class="day"><p class="greet">Tomorrow</p><p class="date">${esc(fmtDate(k))}</p></header>`;
+  html += `<h2>Special for tomorrow</h2>`;
+  html += events.length ? `<div class="tiles">${events.map(t => row(t, t.kind === "yearly" ? "Every year" : t.note || "")).join("")}</div>` : `<div class="empty">Nothing special planned. Just the usual day.</div>`;
+  html += `<h2>Usual tasks</h2><div class="tiles">${daily.map(t => row(t, t.note || "")).join("")}</div>`;
+  return html;
+}
+function rerender() { const f = document.activeElement; if (f) f.blur(); render(); }
+
+app.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const id = b.dataset.id, act = b.dataset.act;
+  try {
+    if (act === "tick") {
+      state.undo = null; await store.tick(id);
+      const t = state.tasks.find(x => x.id === id);
+      if (voice.started && t) say(`Thank you${state.person ? ", " + state.person : ""}. ${t.label} is done.`);
+    }
+    else if (act === "up" || act === "down") {
+      await moveTask(id, act === "up" ? -1 : 1); rerender();
+      document.querySelector(`[data-act="${act}"][data-id="${id}"]`)?.focus();
+    }
+    else if (act === "newcode") {
+      const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", pick = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => abc[x % abc.length]).join("");
+      document.getElementById("f-family").value = pick(4) + "-" + pick(4) + "-" + pick(4);
+    }
+    else if (act === "saytomorrow") say(tomorrowSpeech());
+    else if (act === "quick") {
+      const [k, i] = id.split(":"), q = QUICK[k][Number(i)];
+      document.getElementById("f-label").value = q.label;
+      document.getElementById("f-say").value = q.say || "";
+      const ic = document.querySelector(`#editor input[name=icon][value="${q.icon}"]`); if (ic) ic.checked = true;
+      const has = document.getElementById("f-hastime"), tm = document.getElementById("f-time");
+      has.checked = !!q.time; tm.hidden = !q.time; if (q.time) tm.value = q.time;
+      document.getElementById("f-label").focus();
+    }
+    else if (act === "saymsg") { const m = state.messages.find(x => x.id === id); if (m) say(messageSpeech(m)); }
+    else if (act === "delmsg") { await store.deleteMessage(id); rerender(); }
+    else if (act === "say") { const t = state.tasks.find(x => x.id === id); if (t) say(promptFor(t)); }
+    else if (act === "voiceon") { if (!voice.started) voiceStart(); rerender(); }
+    else if (act === "voiceoff") { voiceStop(); rerender(); }
+    else if (act === "preview") {
+      const n = document.getElementById("f-person").value.trim();
+      say(`${n ? n + ", " : ""}it's time for your morning pills. Press the green Confirm button when it's done.`);
+    }
+    else if (act === "askundo") { state.undo = id; rerender(); }
+    else if (act === "untick") { state.undo = null; await store.untick(id); rerender(); }
+    else if (act === "keep") { state.undo = null; rerender(); }
+    else if (act === "edit") { state.editing = id; state.confirmDelete = null; rerender(); document.getElementById("f-label")?.focus(); }
+    else if (act === "cancel") { state.editing = null; rerender(); }
+    else if (act === "askdel") { state.editing = null; state.confirmDelete = id; rerender(); }
+    else if (act === "canceldel") { state.confirmDelete = null; rerender(); }
+    else if (act === "delete") { state.confirmDelete = null; await store.deleteTask(id); rerender(); }
+  } catch (err) { showError(err); }
+});
+app.addEventListener("change", e => {
+  if (e.target.id === "m-hastime") document.getElementById("m-time").hidden = !e.target.checked;
+  if (e.target.id === "f-hastime")document.getElementById("f-time").hidden = !e.target.checked;
+  if (e.target.id === "f-style") { chosenStyle = e.target.value; try { localStorage.setItem("gv-voice-style", chosenStyle); } catch (err) {} }
+  if (e.target.id === "f-voice") { chosenVoice = e.target.value; try { localStorage.setItem("gv-voice-name", chosenVoice); } catch (err) {} }
+  if (e.target.name === "kind") {
+    document.getElementById("f-date-wrap").hidden = e.target.value === "daily" || e.target.value === "weekly";
+    document.getElementById("f-days-wrap").hidden = e.target.value !== "weekly";
+    document.getElementById("f-cd-wrap").hidden = e.target.value !== "once";
+  }
+});
+app.addEventListener("submit", async e => {
+  e.preventDefault();
+  if (e.target.id === "msgform") {
+    const text = document.getElementById("m-text").value.trim(); if (!text) return;
+    const data = { text, from: document.getElementById("m-from").value.trim(), at: new Date().toISOString() };
+    const hm = document.getElementById("m-time").value;
+    if (document.getElementById("m-hastime").checked && hm) {
+      const d = new Date(), [h, m] = hm.split(":").map(Number);
+      d.setHours(h, m, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1);
+      data.alertAt = d.toISOString();
+    }
+    try { await store.sendMessage(data); e.target.reset(); rerender(); } catch (err) { showError(err); }
+    return;
+  }
+  if (e.target.id === "familyform") {
+    const code = document.getElementById("f-family").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/(.{4})(?=.)/g, "$1-");
+    // codes are the only key to a family's data, so only accept the long random ones the app creates
+    if (code && !/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(code)) { showError({ code: "family_code" }); return; }
+    try { localStorage.setItem("gv-family", code); } catch (err) {}
+    location.reload(); return;
+  }
+  if (e.target.id === "nameform") {
+    try { await store.saveName(document.getElementById("f-person").value.trim()); rerender(); } catch (err) { showError(err); }
+    return;
+  }
+  const f = new FormData(e.target), id = e.target.dataset.id;
+  const kind = f.get("kind") || "daily";
+  const data = { label: String(f.get("label")).trim(), kind, icon: f.get("icon") || "star",
+    time: f.get("hastime") === "on" ? (f.get("time") || "") : "", date: kind === "once" || kind === "yearly" ? (f.get("date") || state.today) : "",
+    days: kind === "weekly" ? (f.getAll("days").map(Number).length ? f.getAll("days").map(Number) : [dow(state.today)]) : [], note: String(f.get("note") || "").trim(),
+    countdown: kind === "once" && f.get("countdown") === "on", say: String(f.get("say") || "").trim(), noConfirm: f.get("noconfirm") === "on",
+    order: id ? (state.tasks.find(t => t.id === id)?.order || 0) : Date.now() };
+  if (!data.label) return;
+  try { await store.saveTask(id || null, data); state.editing = null; rerender(); } catch (err) { showError(err); }
+});
+function showError(err) {
+  const msg = err && err.code === "family_code" ? "That family code isn't right. It should look like ABCD-EF23-GH45. Tap \"Create a new code\" to make one." : err && err.code === "invalid_argument" ? "You can view this list but not change it. Ask the owner to give you Contributor access." : "That didn't save. Check your connection and try again.";
+  const div = document.createElement("div"); div.className = "banner"; div.textContent = msg; app.prepend(div);
+}
+window.addEventListener("hashchange", () => {
+  state.editing = null; state.undo = null; render();
+  if (view() === "tomorrow" && voice.started) { try { speechSynthesis.cancel(); } catch (e) {} say(tomorrowSpeech()); }
+});
+setInterval(() => { render(); voiceCheck(); }, 30000); // keep the clock, "overdue" states and spoken reminders current
+if (canSpeak) try { speechSynthesis.getVoices(); speechSynthesis.addEventListener?.("voiceschanged", () => render()); } catch (e) {}
+
+render();
+(async () => {
+  db = window.claude ? await window.claude.use("db") : null;
+  if (!db) {
+    state.mode = "demo";
+    state.tasks = DEMO_TASKS.map((t, i) => ({ id: "demo" + i, ...t }));
+    return render();
+  }
+  const since = weekKeys()[0];
+  const msgSince = new Date(Date.now() - 2 * 86400000).toISOString();
+  db.collection("messages").where("at", ">=", msgSince).orderBy("at", "desc").limit(20).onSnapshot(s => {
+    state.messages = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    // read out messages that arrive while spoken reminders are on
+    // (alerts are read out by voiceCheck when their time comes)
+    if (voice.started) s.docChanges().filter(c => c.type === "added" && !c.doc.data().alertAt && c.doc.data().at > voice.onAt).forEach(c => say(messageSpeech(c.doc.data())));
+    render();
+  });
+  db.collection("settings").doc("person").onSnapshot(s => { state.person = s.exists ? String(s.data().name || "") : ""; render(); });
+  db.collection("tasks").onSnapshot(s => { state.tasks = s.docs.map(d => ({ id: d.id, ...d.data() })); state.mode = "live"; render(); },
+    () => { state.mode = "live"; render(); });
+  db.collection("ticks").where("date", ">=", since).onSnapshot(s => {
+    const m = {}; s.docs.forEach(d => { const x = d.data(); m[tickId(x.date, x.taskId)] = x; }); state.ticks = m; render();
+  });
+})();
+</script>
