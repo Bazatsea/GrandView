@@ -43,7 +43,10 @@ button, input, select { font: inherit; color: inherit }
 button { cursor: pointer }
 :focus-visible { outline: 4px solid var(--accent); outline-offset: 3px }
 
-.topbar { display: flex; gap: 10px; align-items: center }
+/* The buttons and the date stay at the top while the list scrolls under them. */
+.topbar { display: flex; gap: 10px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; background: var(--bg); padding-block: 8px; margin-top: -8px }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+.dayinfo { margin-bottom: 20px }
 .topbar .tabs { flex: 1; min-width: 0 }
 .gear { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); border: 2px solid var(--line); background: var(--surface) }
 .gear svg { width: 24px; height: 24px }
@@ -64,7 +67,7 @@ button { cursor: pointer }
 @media (max-width: 400px) { .tabs a { font-size: 1.25rem } .tabs { gap: 4px; padding: 4px } }
 .tabs a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
 
-header.day { display: grid; gap: 2px; margin-block: 28px 20px; }
+header.day { display: grid; gap: 2px; margin-block: 20px 8px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--topbar-h, 64px)); z-index: 5; background: var(--bg); padding-block: 8px 12px; border-bottom: 2px solid var(--line) }
 .day .date { font-family: var(--font-display); font-weight: 600; font-size: clamp(2.1rem, 8vw, 3.2rem); line-height: 1.05; text-wrap: balance; margin: 0 }
 .day .clock { font-size: 1.6rem; color: var(--muted); font-variant-numeric: tabular-nums }
 .progress { margin-top: 12px; font-size: 1.15rem; font-weight: 700 }
@@ -452,9 +455,11 @@ function renderToday() {
     <p class="greet">${esc(part)}${state.person ? ", " + esc(state.person) : ""}</p>
     <p class="date">${esc(fmtDate(state.today))}</p>
     <div class="clock">${esc(fmtTime(nowHM()))}</div>
+  </header>
+  <div class="dayinfo">
     ${needs.length ? `<div class="progress">${done} of ${needs.length} confirmed today</div><div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>` : ""}
     ${state.mode === "demo" ? `<div class="banner">Demo mode: ticks are not shared or saved in this view.</div>` : ""}
-  </header>`;
+  </div>`;
   const msgs = state.messages.filter(msgLive).sort((a, b) => shownAt(b).localeCompare(shownAt(a))).slice(0, 3);
   if (msgs.length) html += `<div class="msgs">${msgs.map(m => `<div class="msg">
       <span class="ic">${m.alertAt ? ICONS.bell : ICONS.phone}</span>
@@ -652,6 +657,7 @@ document.getElementById("voice-btn").addEventListener("click", () => {
   g.addEventListener("keyup", e => { if (e.key === "Enter" || e.key === " ") stop(); });
   g.addEventListener("contextmenu", e => e.preventDefault());
 })();
+try { new ResizeObserver(([e]) => document.documentElement.style.setProperty("--topbar-h", Math.ceil(e.target.getBoundingClientRect().height) + "px")).observe(document.querySelector(".topbar")); } catch (e) {}
 function render() {
   state.today = keyOf(new Date());
   renderVoiceBtn();
